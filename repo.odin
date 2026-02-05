@@ -3,13 +3,11 @@ package repo
 import "core:os"
 import "core:strings"
 
-// Package represents one package entry in repo.txt
 Package :: struct {
     name: string
-    url:  string
+    urls: []string
 }
 
-// load reads /etc/script/repo.txt and returns a list of packages
 load :: proc() -> []Package {
     data, ok := os.read_entire_file("/etc/script/repo.txt")
     if !ok {
@@ -27,7 +25,7 @@ load :: proc() -> []Package {
 
         parts := strings.split(l, " ")
         if len(parts) >= 2 {
-            append(&pkgs, Package{parts[0], parts[1]})
+            append(&pkgs, Package{parts[0], parts[1:]})
         }
     }
 
