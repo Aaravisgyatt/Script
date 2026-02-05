@@ -14,6 +14,6 @@ can list installed packages,
 can show package info, 
 can log with timestamps, 
 has versioning with script --version and 
-has a license
+has a license.
 Will add future updates.
 This is all made by me and I should be credited.
