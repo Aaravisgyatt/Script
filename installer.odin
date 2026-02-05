@@ -8,88 +8,100 @@ import config
 import repo
 import database
 import manifest
-import log
+import log"
+
+import "core:crypto/sha256"
+
+download_file :: proc(url: string, dest: string) -> bool {
+	dl := process.run({program="curl", args={"-L","-o",dest,url}})
+	return dl.exit_code == 0
+}
+
+verify_checksum :: proc(file: string, expected: string) -> bool {
+	data, ok := os.read_entire_file(file)
+	if !ok { return false }
+	sum := sha256.hash(data)
+	return sum == expected
+}
+
+copy_files :: proc(src: string, dest_root: string) -> []string {
+	installed := make([]string,0)
+	entries, ok := os.read_dir(src)
+	if !ok { return nil }
+	for e in entries {
+		src_path := src + "/" + e.name
+		dest_path := dest_root + "/" + e.name
+		if e.is_dir {
+			os.mkdir_all(dest_path,0o755)
+			sub := copy_files(src_path,dest_path)
+			for f in sub { append(&installed,f) }
+		} else {
+			data,_ := os.read_entire_file(src_path)
+			os.write_file(dest_path,data,0o644)
+			append(&installed,dest_path)
+		}
+	}
+	return installed
+}
 
 install :: proc(name: string) {
-    pkgs := repo.load()
+	pkgs := repo.load()
+	for p in pkgs {
+		if p.name != name { continue }
 
-    for p in pkgs {
-        if p.name == name {
-            log.info("Downloading " + name)
+		// Try all mirrors
+		var archive_ok bool = false
+		archive := config.CACHE + "/" + name + ".tar.gz"
+		temp := config.SANDBOX + "/" + name
+		os.mkdir_all(temp,0o755)
+		for _,url in p.urls {
+			if download_file(url,archive) {
+				archive_ok = true
+				break
+			}
+		}
+		if !archive_ok { log.err("Failed to download "+name); return }
 
-            archive := config.CACHE + "/" + name + ".tar.gz"
-            temp := config.CACHE + "/extract/" + name
-            os.mkdir_all(temp, 0o755)
+		// Extract
+		extract := process.run({program="tar", args={"-xzf",archive,"-C",temp}})
+		if extract.exit_code !=0 { log.err("Failed to extract "+name); return }
 
-            // Download package
-            download := process.run({
-                program = "curl",
-                args = {"-L", "-o", archive, p.url},
-            })
-            if download.exit_code != 0 {
-                log.err("Failed to download " + name)
-                return
-            }
+		m := manifest.load(temp + "/manifest.toml")
 
-            // Extract package
-            extract := process.run({
-                program = "tar",
-                args = {"-xzf", archive, "-C", temp},
-            })
-            if extract.exit_code != 0 {
-                log.err("Failed to extract " + name)
-                return
-            }
+		// Check SHA256
+		if m.sha256 != "" && !verify_checksum(archive,m.sha256) {
+			log.err("Checksum mismatch for "+name)
+			return
+		}
 
-            // Load manifest
-            m := manifest.load(temp + "/" + name + "/manifest.toml")
-            log.info("Installing " + m.name + " v" + m.version)
-            log.info("Description: " + m.description)
+		// Install dependencies
+		for _,dep in m.depends { install(dep) }
 
-            // Copy files and track installed paths
-            installed_files := copy_files(temp + "/" + name + "/files", "/")
+		// Copy files to sandbox
+		files := copy_files(temp + "/files", temp)
 
-            // Register in database
-            database.register(m.name, m.version, installed_files)
-
-            log.ok("Installed " + m.name + " successfully")
-            return
-        }
-    }
-
-    log.err("Package " + name + " not found in repo")
+		database.register(m.name,m.version,files,m.depends)
+		log.ok("Installed "+m.name+" v"+m.version)
+		return
+	}
+	log.err("Package "+name+" not found")
 }
 
-// Recursive copy helper
-copy_files :: proc(src: string, dest_root: string) -> []string {
-    installed := make([]string, 0)
-    entries, ok := os.read_dir(src)
-    if !ok {
-        log.err("Failed to read directory: " + src)
-        return nil
-    }
+remove :: proc(name: string) { database.remove(name) }
 
-    for e in entries {
-        src_path := src + "/" + e.name
-        dest_path := dest_root + "/" + e.name
-
-        if e.is_dir {
-            os.mkdir_all(dest_path, 0o755)
-            sub_files := copy_files(src_path, dest_path)
-            for f in sub_files {
-                append(&installed, f)
-            }
-        } else {
-            data, _ := os.read_entire_file(src_path)
-            os.write_file(dest_path, data, 0o644)
-            append(&installed, dest_path)
-        }
-    }
-
-    return installed
+upgrade :: proc(name: string) {
+	remove(name)
+	install(name)
 }
 
-// Remove package using DB and delete files
-remove :: proc(name: string) {
-    database.remove(name)
+rollback :: proc(name: string) {
+	log.info("Rollback not implemented yet")
+}
+
+info :: proc(name: string) {
+	ver, deps, files := database.read_package(name)
+	log.info("Package: " + name)
+	log.info("Version: " + ver)
+	log.info("Depends: " + strings.join(deps,", "))
+	log.info("Files: " + strings.join(files,", "))
 }
