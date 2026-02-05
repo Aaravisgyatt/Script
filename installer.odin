@@ -3,7 +3,6 @@ package installer
 import "core:os"
 import "core:process"
 import "core:fmt"
-import "core:strings"
 
 import config
 import repo
@@ -14,34 +13,29 @@ import log
 install :: proc(name: string) {
     pkgs := repo.load()
 
-    // Look for the package in repo
     for p in pkgs {
         if p.name == name {
             log.info("Downloading " + name)
 
             archive := config.CACHE + "/" + name + ".tar.gz"
             temp := config.CACHE + "/extract/" + name
-
-            // Make temp folder
             os.mkdir_all(temp, 0o755)
 
-            // Download the package
+            // Download package
             download := process.run({
                 program = "curl",
                 args = {"-L", "-o", archive, p.url},
             })
-
             if download.exit_code != 0 {
                 log.err("Failed to download " + name)
                 return
             }
 
-            // Extract archive
+            // Extract package
             extract := process.run({
                 program = "tar",
                 args = {"-xzf", archive, "-C", temp},
             })
-
             if extract.exit_code != 0 {
                 log.err("Failed to extract " + name)
                 return
@@ -66,10 +60,9 @@ install :: proc(name: string) {
     log.err("Package " + name + " not found in repo")
 }
 
-// Recursive copy helper (naive but works for small packages)
+// Recursive copy helper
 copy_files :: proc(src: string, dest_root: string) -> []string {
     installed := make([]string, 0)
-
     entries, ok := os.read_dir(src)
     if !ok {
         log.err("Failed to read directory: " + src)
@@ -94,4 +87,9 @@ copy_files :: proc(src: string, dest_root: string) -> []string {
     }
 
     return installed
+}
+
+// Remove package using DB and delete files
+remove :: proc(name: string) {
+    database.remove(name)
 }
