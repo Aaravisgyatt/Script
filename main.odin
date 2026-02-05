@@ -1,6 +1,6 @@
 package main
 
-VERSION :: "0.2.0"
+VERSION :: "0.3.0"
 
 import "core:fmt"
 import "core:os"
@@ -16,6 +16,9 @@ usage :: proc() {
 	fmt.println("  script install <package>")
 	fmt.println("  script remove <package>")
 	fmt.println("  script list")
+	fmt.println("  script upgrade <package>")
+	fmt.println("  script rollback <package>")
+	fmt.println("  script info <package>")
 	fmt.println("  script --version")
 	fmt.println("")
 }
@@ -36,19 +39,38 @@ main :: proc() {
 			fmt.println("error: no package specified")
 			return
 		}
-		pkg := args[2]
-		installer.install(pkg)
+		installer.install(args[2])
 
 	case "remove":
 		if len(args) < 3 {
 			fmt.println("error: no package specified")
 			return
 		}
-		pkg := args[2]
-		installer.remove(pkg)
+		installer.remove(args[2])
 
 	case "list":
 		database.list_installed()
+
+	case "upgrade":
+		if len(args) < 3 {
+			fmt.println("error: no package specified")
+			return
+		}
+		installer.upgrade(args[2])
+
+	case "rollback":
+		if len(args) < 3 {
+			fmt.println("error: no package specified")
+			return
+		}
+		installer.rollback(args[2])
+
+	case "info":
+		if len(args) < 3 {
+			fmt.println("error: no package specified")
+			return
+		}
+		installer.info(args[2])
 
 	case "--version", "-v":
 		fmt.println(VERSION)
