@@ -24,7 +24,9 @@ HOW TO INSTALL:
 Open terminal by ctrl + alt + t or other means.
 
 Write git clone https://github.com/YOURNAME/script
+
 cd script
+
 odin build . -out:script
 
 Now it should work
