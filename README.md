@@ -17,3 +17,14 @@ has versioning with script --version and
 has a license.
 Will add future updates.
 This is all made by me and I should be credited.
+
+
+HOW TO INSTALL:
+
+Open terminal by ctrl + alt + t or other means.
+
+Write git clone https://github.com/YOURNAME/script
+cd script
+odin build . -out:script
+
+Now it should work
